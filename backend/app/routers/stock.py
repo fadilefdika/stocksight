@@ -1,25 +1,55 @@
 from fastapi import APIRouter, HTTPException
-from app.db import database
-from app.models.stock_model import StockData, StockInfo
+import os
+import requests
+import logging
 
 router = APIRouter(
     prefix="/stock",
     tags=["Stock"],
 )
 
-@router.get("/{company_code}")
-async def get_stock_data(company_code: str):
-    stock_collection = database.get_collection("stocks")
-    stock_data = stock_collection.find_one({"company_code": company_code})
+# Konfigurasi logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-    if not stock_data:
-        raise HTTPException(status_code=404, detail="Stock data not found")
-    
-    return stock_data
+@router.get("/{symbol}")
+async def get_stock_data(symbol: str):
+    api_key = os.getenv("ALPHA_VANTAGE_API_KEY")
 
-@router.post("/")
-async def add_stock_data(stock_data: StockData):
-    stock_collection = database.get_collection("stocks")
-    stock_collection.insert_one(stock_data.dict())
+    # Handle jika API Key belum diset
+    if not api_key:
+        raise HTTPException(status_code=500, detail="API Key is missing. Set ALPHA_VANTAGE_API_KEY in environment variables.")
 
-    return {"message": "Stock data added successfully"}
+    url = f"https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol={symbol}&apikey={api_key}"
+
+    try:
+        response = requests.get(url)
+        response.raise_for_status()  # Raise error jika status bukan 200
+        stock_data = response.json()
+
+        # Periksa apakah ada error dari Alpha Vantage
+        if "Error Message" in stock_data:
+            raise HTTPException(status_code=404, detail=f"Stock data for {symbol} not found")
+
+        # Ambil data yang diperlukan dari API
+        time_series = stock_data.get("Time Series (Daily)", {})
+        if not time_series:
+            raise HTTPException(status_code=404, detail="No time series data available")
+
+        # Ambil data harga terbaru
+        latest_date = sorted(time_series.keys())[-1]
+        latest_data = time_series[latest_date]
+
+        return {
+            "symbol": symbol,
+            "date": latest_date,
+            "open": latest_data["1. open"],
+            "high": latest_data["2. high"],
+            "low": latest_data["3. low"],
+            "close": latest_data["4. close"],
+            "volume": latest_data["5. volume"],
+        }
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Request error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch stock data")

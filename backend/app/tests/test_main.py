@@ -1,25 +1,31 @@
 from fastapi.testclient import TestClient
 from app.main import app
+from app.services.stock_service import add_stock, get_stock
+from datetime import datetime
 
 
 client = TestClient(app)
 
-def test_read_root():
-    response = client.get("/")
-    assert response.status_code == 200
-    assert response.json() == {"message": "Welcome to the Stock Prediction API"}
-
-def test_get_stock_not_found():
-    response = client.get("/stock/UNKNOWN")
-    assert response.status_code == 404
-    assert response.json() == {"detail": "Stock data not found"}
-
-def test_add_stock_data():
+def test_add_stock():
     stock_data = {
-        "company_code": "AAPL",
-        "price": 150.0,
-        "timestamp": "2025-03-22T12:00:00Z"
+        "symbol": "LSTM",
+        "company_name": "Alphabet Inc.",
+        "sector": "SUAWU",
+        "industry": "Internet",
+        "price_history": [
+            {
+                "date": datetime(2023, 1, 1),
+                "open": 1500.0,
+                "close": 1550.0,
+                "high": 1560.0,
+                "low": 1495.0,
+                "volume": 1000000
+            }
+        ]
     }
-    response = client.post("/stock/", json=stock_data)
-    assert response.status_code == 200
-    assert response.json() == {"message": "Stock data added successfully"}
+    response = add_stock(stock_data)
+    assert response is not None
+
+def test_get_stock():
+    stock = get_stock("GOOGL")
+    assert stock.symbol == "GOOGL"

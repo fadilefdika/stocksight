@@ -1,14 +1,9 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import List, Optional
+from bson import ObjectId
 
-class StockData(BaseModel):
-    company_code: str
-    price: float
-    timestamp: str
-
-class StockInfo(BaseModel):
-    company_code: str
-    company_name: Optional[str]
-    market: Optional[str]
-    current_price: Optional[float]
-    timestamp: Optional[str]
+class Stock(BaseModel):
+    id: Optional[ObjectId] = Field(alias="_id")
+    symbol: str
+    company_name: str
+    historical_data: List[dict] # Harga saham historis dari API eksternal
