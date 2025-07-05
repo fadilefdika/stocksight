@@ -1,46 +1,36 @@
-// app/page.tsx
 'use client';
 
+import type React from 'react';
+
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { Input } from '@/components/ui/input';
+import { Search, TrendingUp, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Brain, Search, TrendingUp } from 'lucide-react';
-import StockChart from './components/stock-chart';
+import CandlestickChart from './components/candlestick-chart';
+import { fetchStockHistory } from '@/lib/api';
 
 export default function StockPredictionApp() {
-  const searchParams = useSearchParams();
-  const initialSymbol = searchParams.get('symbol') || '';
-
-  const [symbol, setSymbol] = useState(initialSymbol);
-  const [currentSymbol, setCurrentSymbol] = useState('');
+  const [symbol, setSymbol] = useState('AAPL');
+  const [currentSymbol, setCurrentSymbol] = useState('AAPL');
   const [stockData, setStockData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const currentPrice = stockData?.latest?.close ?? null;
-  const predictedPrice = stockData?.predicted_close ?? null;
-  const priceChange = predictedPrice && currentPrice ? predictedPrice - currentPrice : 0;
-  const priceChangePercent = predictedPrice && currentPrice ? (priceChange / currentPrice) * 100 : 0;
-
-  const fetchStock = async (symbol: string) => {
-    try {
-      const res = await fetch(`http://localhost:8000/stock/${symbol}`);
-      if (!res.ok) throw new Error('Gagal mengambil data');
-      const json = await res.json();
-      const formatted = {
-        ...json,
-        predictionData: [
-          { date: json.latest.date, price: json.latest.close },
-          { date: '7-Day', price: json.predicted_close },
-        ],
-      };
-      setStockData(formatted);
-    } catch (error) {
-      console.error('Gagal fetch data:', error);
-    }
-  };
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const result = await fetchStockHistory(symbol);
+        setStockData(result);
+        console.log('ini hasilnya', result);
+      } catch (err) {
+        console.error('❌ Error loading stock history', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    load();
+  }, [symbol]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,18 +38,24 @@ export default function StockPredictionApp() {
 
     setIsLoading(true);
     setCurrentSymbol(symbol.toUpperCase());
-    await fetchStock(symbol.trim().toUpperCase());
-    setIsLoading(false);
+
+    try {
+      const data = await fetchStockHistory(symbol);
+      setStockData(data);
+    } catch (err) {
+      console.error('❌ Error loading stock history', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Fetch saat halaman dibuka jika ada symbol
-  useEffect(() => {
-    if (initialSymbol) {
-      setCurrentSymbol(initialSymbol.toUpperCase());
-      setIsLoading(true);
-      fetchStock(initialSymbol.toUpperCase()).then(() => setIsLoading(false));
-    }
-  }, [initialSymbol]);
+  const lastDay = stockData?.slice(-1)[0];
+  const prevDay = stockData?.slice(-2)[0];
+
+  const currentPrice = lastDay?.close || 0;
+  const priceChange = lastDay && prevDay ? lastDay.close - prevDay.close : 0;
+  const priceChangePercent = lastDay && prevDay ? ((lastDay.close - prevDay.close) / prevDay.close) * 100 : 0;
+  const lastPrediction = Array.isArray(stockData?.predictionData) && stockData.predictionData.length > 0 ? stockData.predictionData[stockData.predictionData.length - 1] : null;
 
   return (
     <div className="min-h-screen bg-black text-white font-sans">
@@ -68,9 +64,12 @@ export default function StockPredictionApp() {
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg flex items-center justify-center">
-              <Brain className="w-5 h-5" />
+              <BarChart3 className="w-5 h-5" />
             </div>
             <h1 className="text-xl font-bold">AI Stock Predictor</h1>
+            <Badge variant="outline" className="border-gray-700 text-gray-400 text-xs">
+              TradingView Style
+            </Badge>
           </div>
           <Badge variant="outline" className="border-gray-700 text-gray-300">
             LSTM Model
@@ -110,7 +109,7 @@ export default function StockPredictionApp() {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-3xl font-bold">{currentSymbol}</h2>
-                <p className="text-gray-400">Stock Price Analysis & AI Prediction</p>
+                <p className="text-white">Candlestick Chart & AI Prediction</p>
               </div>
               {currentPrice && (
                 <div className="text-right">
@@ -127,52 +126,97 @@ export default function StockPredictionApp() {
 
             {/* Chart */}
             <Card className="bg-gray-900 border-gray-800 p-4">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-semibold text-white">Price Chart & AI Prediction</h3>
-                <div className="flex items-center gap-6 text-sm">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+                <h3 className="text-lg font-semibold text-white">Candlestick Chart & AI Prediction</h3>
+                <div className="flex flex-wrap items-center gap-3 text-sm">
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-0.5 bg-blue-400"></div>
-                    <span className="text-gray-300">Historical Data</span>
+                    <div className="w-3 h-3 bg-green-500"></div>
+                    <span className="text-gray-300">Bullish (Historical)</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-0.5 bg-purple-400 border-dashed border-t"></div>
+                    <div className="w-3 h-3 bg-red-500"></div>
+                    <span className="text-gray-300">Bearish (Historical)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-purple-500 opacity-70"></div>
                     <span className="text-gray-300">AI Prediction</span>
                   </div>
                 </div>
               </div>
-              <StockChart data={stockData} />
+              {Array.isArray(stockData) && stockData.length > 0 && (
+                <CandlestickChart
+                  historicalData={stockData}
+                  predictionData={[]} // atau isi prediksi jika ada
+                />
+              )}
             </Card>
 
-            {/* Prediction Summary */}
-            <Card className="bg-gray-900 border-gray-800 p-6">
-              <h3 className="text-lg font-semibold mb-4">AI Prediction Summary</h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-black rounded-lg p-4 border border-gray-800">
-                  <div className="text-sm text-gray-400 mb-1">7-Day Target</div>
-                  <div className="text-xl font-bold text-purple-400">${predictedPrice?.toFixed(2)}</div>
+            {/* Market Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Current Session */}
+              <Card className="bg-gray-900 border-gray-800 p-6">
+                <h3 className="text-lg font-semibold mb-4 text-white">Current Session</h3>
+                <div className="space-y-3">
+                  {Array.isArray(stockData) &&
+                    stockData.slice(-1).map((day: any) => (
+                      <div key={day.date} className="grid grid-cols-2 gap-4 text-sm">
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Open:</span>
+                            <span className="font-mono">${day.open.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">High:</span>
+                            <span className="font-mono text-green-400">${day.high.toFixed(2)}</span>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Low:</span>
+                            <span className="font-mono text-red-400">${day.low.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-400">Close:</span>
+                            <span className="font-mono">${day.close.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                 </div>
-                <div className="bg-black rounded-lg p-4 border border-gray-800">
-                  <div className="text-sm text-gray-400 mb-1">Predicted Change</div>
-                  <div className={`text-xl font-bold ${priceChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {priceChange >= 0 ? '+' : ''}
-                    {priceChangePercent.toFixed(2)}%
+              </Card>
+
+              {/* AI Prediction Summary */}
+              <Card className="bg-gray-900 border-gray-800 p-6">
+                <h3 className="text-lg font-semibold mb-4 text-white">AI Prediction Summary</h3>
+                <div className="space-y-3">
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">7-Day Target:</span>
+                    <span className="text-xl font-bold text-purple-400">{lastPrediction ? `$${lastPrediction.close.toFixed(2)}` : '-'}</span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Predicted Change:</span>
+                    <span className={`text-lg font-bold ${lastPrediction?.close > currentPrice ? 'text-green-400' : 'text-red-400'}`}>
+                      {lastPrediction ? `${lastPrediction.close > currentPrice ? '+' : ''}${(((lastPrediction.close - currentPrice) / currentPrice) * 100).toFixed(2)}%` : '-'}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Model Confidence:</span>
+                    <span className="text-lg font-bold text-blue-400">{lastPrediction ? `${(Math.random() * 20 + 75).toFixed(1)}%` : '-'}</span>
                   </div>
                 </div>
-                <div className="bg-black rounded-lg p-4 border border-gray-800">
-                  <div className="text-sm text-gray-400 mb-1">Model Confidence</div>
-                  <div className="text-xl font-bold text-blue-400">{(Math.random() * 20 + 75).toFixed(1)}%</div>
-                </div>
-              </div>
-            </Card>
+              </Card>
+            </div>
           </div>
         )}
 
         {/* Empty State */}
         {!stockData && !isLoading && (
           <Card className="bg-gray-900 border-gray-800 p-12 text-center">
-            <Brain className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-300 mb-2">Ready to Predict Stock Prices</h3>
-            <p className="text-gray-500">Enter a stock symbol above to get AI-powered price predictions using our LSTM model</p>
+            <BarChart3 className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-300 mb-2">Ready to Analyze Stock Charts</h3>
+            <p className="text-gray-500">Enter a stock symbol above to get TradingView-style candlestick charts with AI predictions</p>
           </Card>
         )}
       </main>

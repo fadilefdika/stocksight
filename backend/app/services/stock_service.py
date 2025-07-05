@@ -73,3 +73,26 @@ async def fetch_stock_data(symbol: str, redis, model, request: Request):
     await redis.set(symbol, json.dumps(result), ex=3600)
 
     return result
+
+
+async def get_stock_history_data(symbol: str = "AAPL", period="90d", interval="1d"):
+    ticker = yf.Ticker(symbol)
+    hist = ticker.history(period=period, interval=interval)
+
+    if hist.empty:
+        return []
+
+    hist.reset_index(inplace=True)
+    hist['Date'] = hist['Date'].astype(str)  # agar bisa di-JSON
+
+    return [
+        {
+            "date": row["Date"],
+            "open": round(row["Open"], 2),
+            "high": round(row["High"], 2),
+            "low": round(row["Low"], 2),
+            "close": round(row["Close"], 2),
+            "volume": int(row["Volume"]),
+        }
+        for _, row in hist.iterrows()
+    ]
