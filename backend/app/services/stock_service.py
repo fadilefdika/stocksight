@@ -8,12 +8,12 @@ import yfinance as yf
 async def fetch_stock_data(symbol: str, redis, model, request: Request):
     scaler = request.app.state.scaler
 
-    # Cek cache Redis
+    # Check Redis cache
     cached_data = await redis.get(symbol)
     if cached_data:
         return json.loads(cached_data)
 
-    # Ambil data dari yfinance
+    # Fetch from yfinance
     ticker = yf.Ticker(symbol)
     hist = ticker.history(period="90d")
     if hist.empty:
@@ -21,19 +21,11 @@ async def fetch_stock_data(symbol: str, redis, model, request: Request):
     if len(hist) < 60:
         raise HTTPException(status_code=400, detail="Not enough data to predict")
 
-    # Ambil data terbaru
+    # Get last data
     latest = hist.iloc[-1]
-    latest_data = {
-        "symbol": symbol,
-        "date": str(latest.name.date()),
-        "open": round(latest["Open"], 2),
-        "high": round(latest["High"], 2),
-        "low": round(latest["Low"], 2),
-        "close": round(latest["Close"], 2),
-        "volume": int(latest["Volume"])
-    }
+    latest_date = latest.name.date()
 
-    # Prediksi harga
+    # Predict
     try:
         features = ["Open", "High", "Low", "Close", "Volume"]
         last_60 = hist[features].values[-60:]
@@ -43,36 +35,37 @@ async def fetch_stock_data(symbol: str, redis, model, request: Request):
         prediction = model.predict(input_array)
         pred_scaled = prediction[0][0]
 
-        # Inverse transform hanya untuk kolom Close (indeks 3)
+        # Inverse only "close"
         dummy = np.zeros((1, 5))
         dummy[0][3] = pred_scaled
         inversed = scaler.inverse_transform(dummy)
         predicted_close = float(inversed[0][3])
-
-        print("Prediction:", pred_scaled)
-        print("Predicted Close (inversed):", predicted_close)
 
     except Exception as e:
         print("❌ Prediction error:", e)
         traceback.print_exc()
         raise HTTPException(status_code=500, detail="Prediction failed")
 
-    # Tentukan tanggal prediksi = hari setelah data terbaru
-    prediction_date = datetime.strptime(latest_data['date'], "%Y-%m-%d") + timedelta(days=1)
+    # Prediction date
+    prediction_date = latest_date + timedelta(days=1)
 
-    # Buat hasil akhir
-    result = {
-        "latest": latest_data,
-        "predicted": {
+    # Format result (for chart use)
+    result = [
+        {
             "date": prediction_date.strftime("%Y-%m-%d"),
-            "price": predicted_close
+            "open": 0,
+            "high": 0,
+            "low": 0,
+            "close": round(predicted_close, 2),
+            "volume": 0,
+            "predicted": True
         }
-    }
+    ]
 
-    # Cache ke Redis selama 1 jam
+    # Cache
     await redis.set(symbol, json.dumps(result), ex=3600)
-
     return result
+
 
 
 async def get_stock_history_data(symbol: str = "AAPL", period: str = "max", interval: str = "1d"):

@@ -14,14 +14,17 @@ interface CandlestickData {
 
 interface CandlestickChartProps {
   historicalData: CandlestickData[];
+  predictionData: CandlestickData[];
 }
 
-export default function CandlestickChart({ historicalData }: CandlestickChartProps) {
+export default function CandlestickChart({ historicalData, predictionData }: CandlestickChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
+  console.log('📊 Historical Data:', historicalData);
+  console.log('🤖 Prediction Data:', predictionData);
 
   useEffect(() => {
     if (!chartContainerRef.current || historicalData.length === 0) return;
-    console.log('ini ', historicalData);
+
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
       height: 400,
@@ -39,11 +42,15 @@ export default function CandlestickChart({ historicalData }: CandlestickChartPro
       },
     });
 
-    chart.timeScale().fitContent();
+    const historicalSeries = chart.addSeries(CandlestickSeries, {
+      upColor: '#26a69a',
+      downColor: '#ef5350',
+      wickUpColor: '#26a69a',
+      wickDownColor: '#ef5350',
+      borderVisible: false,
+    });
 
-    const candleSeries = chart.addSeries(CandlestickSeries, { upColor: '#26a69a', downColor: '#ef5350', borderVisible: false, wickUpColor: '#26a69a', wickDownColor: '#ef5350' });
-
-    const formattedData = historicalData.map((item) => ({
+    const formattedHistorical = historicalData.map((item) => ({
       time: Math.floor(new Date(item.date).getTime() / 1000) as Time,
       open: item.open,
       high: item.high,
@@ -51,10 +58,33 @@ export default function CandlestickChart({ historicalData }: CandlestickChartPro
       close: item.close,
     }));
 
-    candleSeries.setData(formattedData);
+    historicalSeries.setData(formattedHistorical);
+
+    if (predictionData.length > 0) {
+      const predictionSeries = chart.addSeries(CandlestickSeries, {
+        upColor: 'rgba(126, 56, 191, 0.6)',
+        downColor: 'rgba(126, 56, 191, 0.6)',
+        wickUpColor: 'rgba(126, 56, 191, 0.6)',
+        wickDownColor: 'rgba(126, 56, 191, 0.6)',
+        borderVisible: false,
+      });
+
+      const formattedPrediction = predictionData.map((item) => ({
+        time: Math.floor(new Date(item.date).getTime() / 1000) as Time,
+        open: item.open,
+        high: item.high,
+        low: item.low,
+        close: item.close,
+      }));
+
+      predictionSeries.setData(formattedPrediction);
+    }
+
+    chart.timeScale().fitContent(); // ➜ Dipanggil terakhir agar prediction ikut
 
     const handleResize = () => {
       chart.resize(chartContainerRef.current!.clientWidth, 400);
+      chart.timeScale().fitContent();
     };
     window.addEventListener('resize', handleResize);
 
@@ -62,7 +92,7 @@ export default function CandlestickChart({ historicalData }: CandlestickChartPro
       window.removeEventListener('resize', handleResize);
       chart.remove();
     };
-  }, [historicalData]);
+  }, [historicalData, predictionData]);
 
   return <div ref={chartContainerRef} className="w-full h-[400px]" />;
 }

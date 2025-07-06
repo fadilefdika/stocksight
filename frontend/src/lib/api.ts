@@ -1,7 +1,7 @@
 // lib/api.ts
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-export async function fetchStock(symbol: string) {
+export async function fetchStockPrediction(symbol: string) {
   const res = await fetch(`${BASE_URL}/api/stocks/predict/${symbol}`, {
     cache: 'no-store',
   });

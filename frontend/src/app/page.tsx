@@ -1,7 +1,6 @@
 'use client';
 
 import type React from 'react';
-
 import { useEffect, useState } from 'react';
 import { Search, TrendingUp, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,19 +8,20 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import CandlestickChart from './components/candlestick-chart';
-import { fetchStockHistory } from '@/lib/api';
+import { fetchStockHistory, fetchStockPrediction } from '@/lib/api';
 
 export default function StockPredictionApp() {
   const [symbol, setSymbol] = useState('AAPL');
   const [currentSymbol, setCurrentSymbol] = useState('AAPL');
-  const [stockData, setStockData] = useState<any>(null);
+  const [stockData, setStockData] = useState<any[]>([]);
+  const [predictData, setPredictData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       try {
         const result = await fetchStockHistory(symbol);
-        setStockData(result);
+        setStockData(result?.data || []);
       } catch (err) {
         console.error('❌ Error loading stock history', err);
       } finally {
@@ -39,27 +39,24 @@ export default function StockPredictionApp() {
     setCurrentSymbol(symbol.toUpperCase());
 
     try {
-      const data = await fetchStockHistory(symbol);
-      setStockData(data);
+      const data = await fetchStockPrediction(symbol);
+      setPredictData(data);
     } catch (err) {
-      console.error('❌ Error loading stock history', err);
+      console.error('❌ Error loading stock prediction', err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const lastDay = stockData?.data?.slice(-1)[0];
-  const prevDay = stockData?.data?.slice(-2)[0];
+  const lastDay = stockData.slice(-1)[0];
+  const prevDay = stockData.slice(-2)[0];
 
   const currentPrice = lastDay?.close || 0;
   const priceChange = lastDay && prevDay ? lastDay.close - prevDay.close : 0;
   const priceChangePercent = lastDay && prevDay ? ((lastDay.close - prevDay.close) / prevDay.close) * 100 : 0;
 
-  const lastPrediction = Array.isArray(stockData?.predictionData) && stockData.predictionData.length > 0 ? stockData.predictionData[stockData.predictionData.length - 1] : null;
-
   return (
     <div className="min-h-screen bg-black text-white font-sans">
-      {/* Header */}
       <header className="border-b border-gray-800 p-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -78,7 +75,6 @@ export default function StockPredictionApp() {
       </header>
 
       <main className="max-w-7xl mx-auto p-4 space-y-6">
-        {/* Search Form */}
         <Card className="bg-gray-900 border-gray-800 p-6">
           <form onSubmit={handleSubmit} className="flex gap-4 items-end">
             <div className="flex-1 max-w-md">
@@ -102,10 +98,8 @@ export default function StockPredictionApp() {
           </form>
         </Card>
 
-        {/* Stock Info & Chart */}
-        {stockData && currentSymbol && (
+        {stockData.length > 0 && currentSymbol && (
           <div className="space-y-6">
-            {/* Stock Header */}
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-3xl font-bold">{currentSymbol}</h2>
@@ -124,7 +118,6 @@ export default function StockPredictionApp() {
               )}
             </div>
 
-            {/* Chart */}
             <Card className="bg-gray-900 border-gray-800 p-4">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
                 <h3 className="text-lg font-semibold text-white">Candlestick Chart & AI Prediction</h3>
@@ -143,71 +136,12 @@ export default function StockPredictionApp() {
                   </div>
                 </div>
               </div>
-              {Array.isArray(stockData?.data) && stockData.data.length > 0 && <CandlestickChart historicalData={stockData.data} predictionData={[]} />}
+              <CandlestickChart historicalData={stockData} predictionData={predictData} />
             </Card>
-
-            {/* Market Summary */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Current Session */}
-              <Card className="bg-gray-900 border-gray-800 p-6">
-                <h3 className="text-lg font-semibold mb-4 text-white">Current Session</h3>
-                <div className="space-y-3">
-                  {Array.isArray(stockData) &&
-                    stockData.slice(-1).map((day: any) => (
-                      <div key={day.date} className="grid grid-cols-2 gap-4 text-sm">
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Open:</span>
-                            <span className="font-mono">${day.open.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">High:</span>
-                            <span className="font-mono text-green-400">${day.high.toFixed(2)}</span>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Low:</span>
-                            <span className="font-mono text-red-400">${day.low.toFixed(2)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Close:</span>
-                            <span className="font-mono">${day.close.toFixed(2)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </Card>
-
-              {/* AI Prediction Summary */}
-              <Card className="bg-gray-900 border-gray-800 p-6">
-                <h3 className="text-lg font-semibold mb-4 text-white">AI Prediction Summary</h3>
-                <div className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">7-Day Target:</span>
-                    <span className="text-xl font-bold text-purple-400">{lastPrediction ? `$${lastPrediction.close.toFixed(2)}` : '-'}</span>
-                  </div>
-
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Predicted Change:</span>
-                    <span className={`text-lg font-bold ${lastPrediction?.close > currentPrice ? 'text-green-400' : 'text-red-400'}`}>
-                      {lastPrediction ? `${lastPrediction.close > currentPrice ? '+' : ''}${(((lastPrediction.close - currentPrice) / currentPrice) * 100).toFixed(2)}%` : '-'}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Model Confidence:</span>
-                    <span className="text-lg font-bold text-blue-400">{lastPrediction ? `${(Math.random() * 20 + 75).toFixed(1)}%` : '-'}</span>
-                  </div>
-                </div>
-              </Card>
-            </div>
           </div>
         )}
 
-        {/* Empty State */}
-        {!stockData && !isLoading && (
+        {stockData.length === 0 && !isLoading && (
           <Card className="bg-gray-900 border-gray-800 p-12 text-center">
             <BarChart3 className="w-16 h-16 text-gray-600 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-300 mb-2">Ready to Analyze Stock Charts</h3>

@@ -20,10 +20,8 @@ async def get_stock_history(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @router.get("/predict/{symbol}")
-async def get_stock(symbol: str, request: Request):
+async def get_stock_prediction(symbol: str, request: Request):
     redis = request.app.state.redis
     model = request.app.state.stock_model
     return await fetch_stock_data(symbol, redis, model, request)
-
