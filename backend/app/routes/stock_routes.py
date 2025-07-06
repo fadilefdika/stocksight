@@ -7,12 +7,18 @@ from fastapi import HTTPException
 router = APIRouter(prefix="/api/stocks", tags=["Stock"])
 
 @router.get("/{symbol}")
-async def get_stock_history(symbol: str, period: str = "90d", interval: str = "1d"):
-    # Tidak pakai await karena fungsi ini synchronous
+async def get_stock_history(
+    symbol: str,
+    interval: str = "1d",  # Bisa diganti frontend (misal 1d, 1wk, 1mo)
+):
     if not symbol.isalpha():
         raise HTTPException(status_code=400, detail="Invalid stock symbol")
-    data = await get_stock_history_data(symbol, period, interval) 
-    return data
+
+    try:
+        data = await get_stock_history_data(symbol=symbol, interval=interval)
+        return {"symbol": symbol.upper(), "interval": interval, "data": data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/predict/{symbol}")

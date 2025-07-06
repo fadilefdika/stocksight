@@ -75,15 +75,16 @@ async def fetch_stock_data(symbol: str, redis, model, request: Request):
     return result
 
 
-async def get_stock_history_data(symbol: str = "AAPL", period="90d", interval="1d"):
+async def get_stock_history_data(symbol: str = "AAPL", period: str = "max", interval: str = "1d"):
     ticker = yf.Ticker(symbol)
+
     hist = ticker.history(period=period, interval=interval)
 
     if hist.empty:
-        return []
+        raise HTTPException(status_code=404, detail="No historical data found.")
 
     hist.reset_index(inplace=True)
-    hist['Date'] = hist['Date'].astype(str)  # agar bisa di-JSON
+    hist['Date'] = hist['Date'].astype(str)  # pastikan bisa di-serialize JSON
 
     return [
         {

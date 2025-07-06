@@ -22,7 +22,6 @@ export default function StockPredictionApp() {
       try {
         const result = await fetchStockHistory(symbol);
         setStockData(result);
-        console.log('ini hasilnya', result);
       } catch (err) {
         console.error('❌ Error loading stock history', err);
       } finally {
@@ -49,12 +48,13 @@ export default function StockPredictionApp() {
     }
   };
 
-  const lastDay = stockData?.slice(-1)[0];
-  const prevDay = stockData?.slice(-2)[0];
+  const lastDay = stockData?.data?.slice(-1)[0];
+  const prevDay = stockData?.data?.slice(-2)[0];
 
   const currentPrice = lastDay?.close || 0;
   const priceChange = lastDay && prevDay ? lastDay.close - prevDay.close : 0;
   const priceChangePercent = lastDay && prevDay ? ((lastDay.close - prevDay.close) / prevDay.close) * 100 : 0;
+
   const lastPrediction = Array.isArray(stockData?.predictionData) && stockData.predictionData.length > 0 ? stockData.predictionData[stockData.predictionData.length - 1] : null;
 
   return (
@@ -143,12 +143,7 @@ export default function StockPredictionApp() {
                   </div>
                 </div>
               </div>
-              {Array.isArray(stockData) && stockData.length > 0 && (
-                <CandlestickChart
-                  historicalData={stockData}
-                  predictionData={[]} // atau isi prediksi jika ada
-                />
-              )}
+              {Array.isArray(stockData?.data) && stockData.data.length > 0 && <CandlestickChart historicalData={stockData.data} predictionData={[]} />}
             </Card>
 
             {/* Market Summary */}

@@ -1,7 +1,7 @@
 'use client';
 
-import { ComposedChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-
+import { useEffect, useRef } from 'react';
+import { CandlestickSeries, createChart, ColorType, Time } from 'lightweight-charts';
 interface CandlestickData {
   date: string;
   open: number;
@@ -14,107 +14,55 @@ interface CandlestickData {
 
 interface CandlestickChartProps {
   historicalData: CandlestickData[];
-  predictionData: CandlestickData[];
 }
 
-const CustomCandlestick = (props: any) => {
-  const { payload, x, y, width, height } = props;
-  if (!payload) return null;
+export default function CandlestickChart({ historicalData }: CandlestickChartProps) {
+  const chartContainerRef = useRef<HTMLDivElement>(null);
 
-  const { open, high, low, close, predicted } = payload;
-  const isUp = close > open;
-  const color = predicted ? (isUp ? '#a855f7' : '#7c3aed') : isUp ? '#10b981' : '#ef4444';
-  const wickColor = predicted ? '#a855f7' : isUp ? '#10b981' : '#ef4444';
+  useEffect(() => {
+    if (!chartContainerRef.current || historicalData.length === 0) return;
+    console.log('ini ', historicalData);
+    const chart = createChart(chartContainerRef.current, {
+      width: chartContainerRef.current.clientWidth,
+      height: 400,
+      layout: {
+        background: { type: ColorType.Solid, color: '#111' },
+        textColor: '#ccc',
+      },
+      grid: {
+        vertLines: { color: '#333' },
+        horzLines: { color: '#333' },
+      },
+      timeScale: {
+        timeVisible: true,
+        secondsVisible: false,
+      },
+    });
 
-  const bodyHeight = Math.abs(close - open) * (height / (high - low));
-  const bodyY = y + (high - Math.max(open, close)) * (height / (high - low));
-  const wickX = x + width / 2;
+    chart.timeScale().fitContent();
 
-  return (
-    <g>
-      {/* High-Low Wick */}
-      <line x1={wickX} y1={y} x2={wickX} y2={y + height} stroke={wickColor} strokeWidth={1} opacity={predicted ? 0.8 : 1} />
-      {/* Open-Close Body */}
-      <rect x={x + 1} y={bodyY} width={width - 2} height={Math.max(bodyHeight, 1)} fill={color} stroke={color} strokeWidth={1} opacity={predicted ? 0.7 : 1} strokeDasharray={predicted ? '2,2' : '0'} />
-    </g>
-  );
-};
+    const candleSeries = chart.addSeries(CandlestickSeries, { upColor: '#26a69a', downColor: '#ef5350', borderVisible: false, wickUpColor: '#26a69a', wickDownColor: '#ef5350' });
 
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    const { open, high, low, close, volume, predicted } = data;
-    const change = close - open;
-    const changePercent = (change / open) * 100;
+    const formattedData = historicalData.map((item) => ({
+      time: Math.floor(new Date(item.date).getTime() / 1000) as Time,
+      open: item.open,
+      high: item.high,
+      low: item.low,
+      close: item.close,
+    }));
 
-    return (
-      <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 shadow-xl">
-        <div className="flex items-center gap-2 mb-2">
-          <div className={`w-2 h-2 rounded-full ${predicted ? 'bg-purple-400' : close > open ? 'bg-green-400' : 'bg-red-400'}`}></div>
-          <p className="text-gray-300 text-sm font-medium">{label}</p>
-          {predicted && <span className="text-purple-400 text-xs font-medium">PREDICTED</span>}
-        </div>
-        <div className="space-y-1 text-sm">
-          <div className="flex justify-between gap-4">
-            <span className="text-gray-400">Open:</span>
-            <span className="text-white font-mono">${open.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between gap-4">
-            <span className="text-gray-400">High:</span>
-            <span className="text-white font-mono">${high.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between gap-4">
-            <span className="text-gray-400">Low:</span>
-            <span className="text-white font-mono">${low.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between gap-4">
-            <span className="text-gray-400">Close:</span>
-            <span className="text-white font-mono">${close.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between gap-4 pt-1 border-t border-gray-700">
-            <span className="text-gray-400">Change:</span>
-            <span className={`font-mono ${change >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-              {change >= 0 ? '+' : ''}${change.toFixed(2)} ({changePercent.toFixed(2)}%)
-            </span>
-          </div>
-          {volume && (
-            <div className="flex justify-between gap-4">
-              <span className="text-gray-400">Volume:</span>
-              <span className="text-white font-mono">{volume.toLocaleString()}</span>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
-  return null;
-};
+    candleSeries.setData(formattedData);
 
-export default function CandlestickChart({ historicalData, predictionData }: CandlestickChartProps) {
-  const allData = [...historicalData, ...predictionData];
+    const handleResize = () => {
+      chart.resize(chartContainerRef.current!.clientWidth, 400);
+    };
+    window.addEventListener('resize', handleResize);
 
-  return (
-    <div className="w-full h-80">
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={allData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="1 1" stroke="#333" opacity={0.3} />
-          <XAxis
-            dataKey="date"
-            stroke="#666"
-            fontSize={11}
-            tickFormatter={(value) => {
-              const date = new Date(value);
-              return `${date.getMonth() + 1}/${date.getDate()}`;
-            }}
-            tick={{ fill: '#666' }}
-          />
-          <YAxis stroke="#666" fontSize={11} tickFormatter={(value) => `$${value.toFixed(0)}`} tick={{ fill: '#666' }} domain={['dataMin - 5', 'dataMax + 5']} />
-          <Tooltip content={<CustomTooltip />} />
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      chart.remove();
+    };
+  }, [historicalData]);
 
-          {/* Custom Candlestick Bars */}
-          <Bar dataKey="high" shape={<CustomCandlestick />} fill="transparent" />
-        </ComposedChart>
-      </ResponsiveContainer>
-    </div>
-  );
+  return <div ref={chartContainerRef} className="w-full h-[400px]" />;
 }
